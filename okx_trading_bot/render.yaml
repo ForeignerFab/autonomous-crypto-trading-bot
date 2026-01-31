@@ -1,0 +1,33 @@
+# Render.com deployment configuration
+services:
+  - type: web
+    name: okx-trading-bot
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free  # Change to 'starter' for 24/7 operation
+    envVars:
+      - key: OKX_API_KEY
+        sync: false
+      - key: OKX_SECRET_KEY
+        sync: false
+      - key: OKX_PASSPHRASE
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_CHANNEL_ID
+        sync: false
+      - key: OLLAMA_BASE_URL
+        value: https://your-ollama-instance.com
+      - key: OLLAMA_MODEL
+        value: llama3.2:7b
+    healthCheckPath: /health
+    autoDeploy: true
+
+
+
+
+
+
+
+

@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  trading-bot:
+    build: .
+    container_name: okx-trading-bot
+    restart: unless-stopped
+    environment:
+      # Load from .env file
+      - OKX_API_KEY=${OKX_API_KEY}
+      - OKX_SECRET_KEY=${OKX_SECRET_KEY}
+      - OKX_PASSPHRASE=${OKX_PASSPHRASE}
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:7b}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./reports:/app/reports
+      - ./config.yml:/app/config.yml:ro
+    networks:
+      - trading-network
+    depends_on:
+      - ollama
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional: Ollama service (if you want to run Ollama in the same stack)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-service
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    ports:
+      - "11434:11434"
+    networks:
+      - trading-network
+    # Uncomment if you want to pull models on startup
+    # command: >
+    #   sh -c "ollama serve & sleep 5 && ollama pull llama3.2:7b"
+
+networks:
+  trading-network:
+    driver: bridge
+
+volumes:
+  ollama-data:
+
+
+
+
+
+
+
+

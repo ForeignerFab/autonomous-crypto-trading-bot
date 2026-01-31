@@ -1,0 +1,164 @@
+
+# OKX Trading Bot Configuration Template
+# Copy this file to config.yml and fill in your values
+
+# Trading Configuration
+trading:
+  # Capital and risk settings
+  initial_capital: 500.0  # Starting capital in GBP
+  risk_per_trade: 0.02    # 2% risk per trade
+  max_risk_amount: 10.0   # Maximum £10 per trade
+  
+  # Trading pairs and selection
+  base_currency: "USDT"
+  max_active_pairs: 5     # Maximum number of pairs to trade simultaneously
+  pair_selection_interval: 3600  # Seconds between pair selection updates
+  
+  # Technical analysis parameters
+  indicators:
+    rsi:
+      enabled: true
+      period: 5           # Fast RSI for HFT
+      overbought: 80      # Tightened threshold
+      oversold: 20        # Tightened threshold
+    
+    macd:
+      enabled: true
+      fast_period: 6      # Fast EMA
+      slow_period: 13     # Slow EMA  
+      signal_period: 5    # Signal line EMA
+    
+    bollinger_bands:
+      enabled: true
+      period: 12          # Moving average period
+      std_dev: 1.5        # Standard deviation multiplier
+    
+    ema:
+      enabled: true
+      short_period: 5     # Short EMA
+      long_period: 21     # Long EMA
+
+    vwap:
+      enabled: true
+    
+    volume:
+      vwap_period: 100    # VWAP calculation period
+      volume_threshold: 1.5  # Volume spike threshold
+
+    stochastic:
+      enabled: false
+      overbought: 80
+      oversold: 20
+
+    williams_r:
+      enabled: false
+      overbought: -20
+      oversold: -80
+
+    cci:
+      enabled: false
+      overbought: 100
+      oversold: -100
+
+  # Strategy settings
+  strategy:
+    timeframe: "1m"       # Primary timeframe
+    signal_confirmation: true  # Require multiple indicator confirmation
+    min_profit_target: 0.005   # 0.5% minimum profit target
+    stop_loss_multiplier: 2.0  # Stop loss as multiple of ATR
+    take_profit_multiplier: 3.0 # Take profit as multiple of risk
+
+# OKX API Configuration (fill these in .env file)
+okx:
+  api_key: ""             # Your OKX API key
+  secret_key: ""          # Your OKX secret key
+  passphrase: ""          # Your OKX passphrase
+  sandbox: true           # Set to false for live trading
+  
+  # API settings
+  rate_limit_buffer: 0.1  # Buffer for rate limiting
+  max_retries: 3          # Maximum API retry attempts
+  timeout: 30             # API timeout in seconds
+
+# Discord Configuration (fill these in .env file)
+discord:
+  bot_token: ""           # Discord bot token
+  channel_id: ""          # Channel ID for notifications
+  webhook_url: ""         # Webhook URL for alerts
+  
+  # Notification settings
+  notify_trades: true     # Notify on trade execution
+  notify_errors: true     # Notify on errors
+  notify_daily_report: true  # Send daily reports
+  report_time: "09:00"    # Daily report time (UTC)
+
+# Risk Management
+risk_management:
+  max_daily_loss: 50.0    # Maximum daily loss in GBP
+  max_drawdown: 100.0     # Maximum total drawdown in GBP
+  position_sizing_method: "fixed_risk"  # fixed_risk, kelly, optimal_f
+  
+  # Portfolio limits
+  max_positions: 10       # Maximum open positions
+  correlation_limit: 0.7  # Maximum correlation between positions
+  
+  # Emergency stops
+  emergency_stop_loss: 0.15  # 15% emergency stop
+  circuit_breaker: true   # Enable circuit breaker
+
+# Logging and Monitoring
+logging:
+  level: "INFO"           # DEBUG, INFO, WARNING, ERROR
+  file_path: "logs/trading_bot.log"
+  max_file_size: "10MB"
+  backup_count: 5
+  
+  # Performance monitoring
+  enable_metrics: true
+  metrics_port: 8000
+  
+# Database Configuration
+database:
+  path: "data/trading_bot.db"
+  backup_interval: 3600   # Backup every hour
+  
+# AI Assistant Configuration
+ai_assistant:
+  enabled: true
+  learning_rate: 0.01
+  pattern_recognition: true
+  parameter_optimization: true
+  min_confidence: 0.7     # Minimum confidence for suggestions
+  
+  # AI trade gating (hard approval)
+  trade_gating:
+    enabled: true
+    min_confidence: 0.6
+    fail_open: false      # If AI unavailable, allow trades when true
+  
+  # Ollama AI Configuration (Free AI)
+  use_ollama: true        # Enable Ollama AI (free, powerful)
+  ollama_url: ""          # Ollama API URL (default: http://localhost:11434)
+                          # For cloud: use external Ollama service URL
+                          # Example: https://your-ollama-instance.com
+  ollama_model: "llama3.2:7b"  # Model to use (llama3.2:7b, deepseek-coder, etc.)
+  
+  # Learning parameters
+  lookback_period: 30     # Days of data for learning
+  update_frequency: 24    # Hours between parameter updates
+
+# Pattern Research Configuration
+research:
+  enabled: true
+  top_pairs: 30
+  timeframes: ["1m", "5m", "15m"]
+  days: 90
+  interval_hours: 48
+  max_requests_per_run: 2000
+  max_candles_per_timeframe: 20000
+  min_occurrences: 20
+  min_return_threshold: 0.002
+  lookahead_candles:
+    "1m": 10
+    "5m": 6
+    "15m": 4
