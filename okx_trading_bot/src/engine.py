@@ -469,7 +469,19 @@ class TradingEngine:
             
             # Calculate position sizing and risk parameters
             atr = indicators['atr'].iloc[-1]
-            stop_loss_distance = atr * self.config['trading']['strategy']['stop_loss_multiplier']
+            atr_distance = 0.0
+            if atr is not None and not np.isnan(atr) and atr > 0:
+                atr_distance = atr * self.config['trading']['strategy']['stop_loss_multiplier']
+            else:
+                logger.warning(f"ATR invalid or zero for {symbol}; using min stop distance")
+
+            min_stop_pct = float(self.config['risk_management'].get('min_stop_loss_pct', 0.005))
+            max_stop_pct = float(self.config['risk_management'].get('max_stop_loss_pct', 0.1))
+            min_distance = current_price * min_stop_pct
+            max_distance = current_price * max_stop_pct
+
+            stop_loss_distance = max(atr_distance, min_distance)
+            stop_loss_distance = min(stop_loss_distance, max_distance)
             
             if action == 'buy':
                 stop_loss = current_price - stop_loss_distance
