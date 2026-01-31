@@ -131,6 +131,11 @@ ai_assistant:
   pattern_recognition: true
   parameter_optimization: true
   min_confidence: 0.7     # Minimum confidence for suggestions
+  signal_generation:
+    enabled: true
+    min_confidence: 0.6
+    cooldown_seconds: 60
+    weight: 1.0
   
   # AI trade gating (hard approval)
   trade_gating:

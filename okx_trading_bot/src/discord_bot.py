@@ -483,14 +483,23 @@ class DiscordNotifier:
                 color=color,
                 timestamp=datetime.now()
             )
+
+            def _fmt_price(value: float) -> str:
+                try:
+                    value = float(value)
+                    if value == 0:
+                        return "0"
+                    return f"{value:.8f}" if value < 1 else f"{value:.4f}"
+                except Exception:
+                    return str(value)
             
             embed.add_field(name="Symbol", value=signal.symbol, inline=True)
             embed.add_field(name="Action", value=signal.action.upper(), inline=True)
             embed.add_field(name="Size", value=f"{signal.position_size:.6f}", inline=True)
             
-            embed.add_field(name="Entry Price", value=f"£{signal.entry_price:.4f}", inline=True)
-            embed.add_field(name="Stop Loss", value=f"£{signal.stop_loss:.4f}", inline=True)
-            embed.add_field(name="Take Profit", value=f"£{signal.take_profit:.4f}", inline=True)
+            embed.add_field(name="Entry Price", value=f"£{_fmt_price(signal.entry_price)}", inline=True)
+            embed.add_field(name="Stop Loss", value=f"£{_fmt_price(signal.stop_loss)}", inline=True)
+            embed.add_field(name="Take Profit", value=f"£{_fmt_price(signal.take_profit)}", inline=True)
             
             embed.add_field(name="Risk Amount", value=f"£{signal.position_size * abs(signal.entry_price - signal.stop_loss):.2f}", inline=True)
             embed.add_field(name="Confidence", value=f"{signal.confidence*100:.1f}%", inline=True)

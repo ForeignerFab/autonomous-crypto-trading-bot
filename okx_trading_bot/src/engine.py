@@ -345,51 +345,51 @@ class TradingEngine:
             vwap = indicators['vwap'].iloc[-1]
             
             # Signal generation logic
-            signals = []
+            indicator_signals = []
             reasoning = []
             
             # RSI signals
             if self._indicator_enabled('rsi'):
                 if rsi < self.config['trading']['indicators']['rsi']['oversold']:
-                    signals.append('buy')
+                    indicator_signals.append('buy')
                     reasoning.append(f"RSI oversold ({rsi:.2f})")
                 elif rsi > self.config['trading']['indicators']['rsi']['overbought']:
-                    signals.append('sell')
+                    indicator_signals.append('sell')
                     reasoning.append(f"RSI overbought ({rsi:.2f})")
             
             # MACD signals
             if self._indicator_enabled('macd'):
                 if macd_line > macd_signal and macd_histogram > 0:
-                    signals.append('buy')
+                    indicator_signals.append('buy')
                     reasoning.append("MACD bullish crossover")
                 elif macd_line < macd_signal and macd_histogram < 0:
-                    signals.append('sell')
+                    indicator_signals.append('sell')
                     reasoning.append("MACD bearish crossover")
             
             # Bollinger Bands signals
             if self._indicator_enabled('bollinger_bands'):
                 if current_price < bb_lower:
-                    signals.append('buy')
+                    indicator_signals.append('buy')
                     reasoning.append("Price below BB lower band")
                 elif current_price > bb_upper:
-                    signals.append('sell')
+                    indicator_signals.append('sell')
                     reasoning.append("Price above BB upper band")
             
             # EMA trend signals
             if self._indicator_enabled('ema'):
                 if self._indicator_enabled('vwap'):
                     if ema_short > ema_long and current_price > vwap:
-                        signals.append('buy')
+                        indicator_signals.append('buy')
                         reasoning.append("Bullish EMA trend + above VWAP")
                     elif ema_short < ema_long and current_price < vwap:
-                        signals.append('sell')
+                        indicator_signals.append('sell')
                         reasoning.append("Bearish EMA trend + below VWAP")
                 else:
                     if ema_short > ema_long:
-                        signals.append('buy')
+                        indicator_signals.append('buy')
                         reasoning.append("Bullish EMA trend")
                     elif ema_short < ema_long:
-                        signals.append('sell')
+                        indicator_signals.append('sell')
                         reasoning.append("Bearish EMA trend")
 
             # Stochastic oscillator signals
@@ -400,10 +400,10 @@ class TradingEngine:
                 stoch_overbought = stoch_config.get('overbought', 80)
                 stoch_oversold = stoch_config.get('oversold', 20)
                 if stoch_k < stoch_oversold and stoch_k > stoch_d:
-                    signals.append('buy')
+                    indicator_signals.append('buy')
                     reasoning.append(f"Stochastic oversold ({stoch_k:.2f})")
                 elif stoch_k > stoch_overbought and stoch_k < stoch_d:
-                    signals.append('sell')
+                    indicator_signals.append('sell')
                     reasoning.append(f"Stochastic overbought ({stoch_k:.2f})")
 
             # Williams %R signals
@@ -413,10 +413,10 @@ class TradingEngine:
                 will_overbought = will_config.get('overbought', -20)
                 will_oversold = will_config.get('oversold', -80)
                 if williams_r < will_oversold:
-                    signals.append('buy')
+                    indicator_signals.append('buy')
                     reasoning.append(f"Williams %R oversold ({williams_r:.2f})")
                 elif williams_r > will_overbought:
-                    signals.append('sell')
+                    indicator_signals.append('sell')
                     reasoning.append(f"Williams %R overbought ({williams_r:.2f})")
 
             # CCI signals
@@ -426,29 +426,46 @@ class TradingEngine:
                 cci_overbought = cci_config.get('overbought', 100)
                 cci_oversold = cci_config.get('oversold', -100)
                 if cci < cci_oversold:
-                    signals.append('buy')
+                    indicator_signals.append('buy')
                     reasoning.append(f"CCI oversold ({cci:.2f})")
                 elif cci > cci_overbought:
-                    signals.append('sell')
+                    indicator_signals.append('sell')
                     reasoning.append(f"CCI overbought ({cci:.2f})")
             
-            # Require signal confirmation if enabled
+            ai_signal = None
+            if self.ai_assistant:
+                ai_signal = await self.ai_assistant.generate_signal_from_chart(symbol, df, indicators)
+                if ai_signal:
+                    reasoning.append(
+                        f"AI signal: {ai_signal.get('action')} ({ai_signal.get('confidence', 0):.2f})"
+                    )
+
+            total_signals = len(indicator_signals) + (1 if ai_signal else 0)
             if self.config['trading']['strategy']['signal_confirmation']:
-                if len(signals) < 2:
+                if total_signals < 2:
                     return None
+
+            # Weighted signal score
+            scores = {"buy": 0.0, "sell": 0.0}
+            for sig in indicator_signals:
+                scores[sig] += 1.0
+            if ai_signal:
+                weight = float(ai_signal.get("weight", 1.0))
+                confidence = float(ai_signal.get("confidence", 0.0))
+                action = ai_signal.get("action")
+                if action in scores:
+                    scores[action] += weight * confidence
             
             # Determine final signal
-            buy_signals = signals.count('buy')
-            sell_signals = signals.count('sell')
-            
-            if buy_signals > sell_signals:
+            if scores["buy"] > scores["sell"]:
                 action = 'buy'
-                confidence = buy_signals / len(signals)
-            elif sell_signals > buy_signals:
+            elif scores["sell"] > scores["buy"]:
                 action = 'sell'
-                confidence = sell_signals / len(signals)
             else:
                 return None
+
+            total_score = scores["buy"] + scores["sell"]
+            confidence = (scores[action] / total_score) if total_score else 0.0
             
             # Calculate position sizing and risk parameters
             atr = indicators['atr'].iloc[-1]

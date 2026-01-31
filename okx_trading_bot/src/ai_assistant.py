@@ -8,6 +8,7 @@ Enhanced with Ollama AI integration for free, powerful AI capabilities
 import numpy as np
 import pandas as pd
 import asyncio
+import time
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -61,6 +62,17 @@ class AIAssistant:
         self.enabled = self.ai_config.get('enabled', True)
         self.trade_gating_config = self.ai_config.get('trade_gating', {})
         self.trade_gating_enabled = self.trade_gating_config.get('enabled', False)
+        self.signal_generation_config = self.ai_config.get('signal_generation', {})
+        self.signal_generation_enabled = self.signal_generation_config.get('enabled', False)
+        self.signal_generation_min_confidence = float(
+            self.signal_generation_config.get('min_confidence', 0.6)
+        )
+        self.signal_generation_cooldown = int(
+            self.signal_generation_config.get('cooldown_seconds', 60)
+        )
+        self.signal_generation_weight = float(
+            self.signal_generation_config.get('weight', 1.0)
+        )
         
         if not self.enabled:
             logger.info("AI assistant disabled")
@@ -100,11 +112,114 @@ class AIAssistant:
         self.parameter_performance = {}
         self.research_stats = {}
         self._gate_lock = asyncio.Lock()
+        self._last_signal_time: Dict[str, float] = {}
         
         # Pattern templates
         self.pattern_templates = self._initialize_pattern_templates()
         
         logger.info("AI assistant initialized" + (" with Ollama" if self.use_ollama else " (fallback mode)"))
+
+    async def generate_signal_from_chart(
+        self,
+        symbol: str,
+        df: pd.DataFrame,
+        indicators: Dict
+    ) -> Optional[Dict[str, Any]]:
+        """Generate a buy/sell/hold signal from recent chart data using Ollama"""
+        try:
+            if not self.enabled or not self.signal_generation_enabled:
+                return None
+            if not self.use_ollama or not self.ollama or not self.ollama.is_available():
+                return None
+            if df is None or df.empty:
+                return None
+
+            now = time.time()
+            last = self._last_signal_time.get(symbol, 0)
+            if now - last < self.signal_generation_cooldown:
+                return None
+            self._last_signal_time[symbol] = now
+
+            tail = df.tail(50)
+            close = tail['close']
+            high = tail['high']
+            low = tail['low']
+            volume = tail['volume']
+
+            change_pct = (close.iloc[-1] - close.iloc[0]) / close.iloc[0] if close.iloc[0] else 0.0
+
+            rsi = indicators.get('rsi', pd.Series()).iloc[-1] if isinstance(indicators.get('rsi'), pd.Series) else indicators.get('rsi')
+            macd_hist = indicators.get('macd_histogram', pd.Series()).iloc[-1] if isinstance(indicators.get('macd_histogram'), pd.Series) else indicators.get('macd_histogram')
+            bb_width = indicators.get('bb_width', pd.Series()).iloc[-1] if isinstance(indicators.get('bb_width'), pd.Series) else indicators.get('bb_width')
+            ema_short = indicators.get('ema_short', pd.Series()).iloc[-1] if isinstance(indicators.get('ema_short'), pd.Series) else indicators.get('ema_short')
+            ema_long = indicators.get('ema_long', pd.Series()).iloc[-1] if isinstance(indicators.get('ema_long'), pd.Series) else indicators.get('ema_long')
+
+            prompt = (
+                "Read the chart summary and respond with JSON only: "
+                "{\"action\":\"buy|sell|hold\",\"confidence\":0-1,\"reason\":\"...\"}\n\n"
+                f"Symbol: {symbol}\n"
+                f"Last close: {float(close.iloc[-1]):.6f}\n"
+                f"Change(50): {change_pct*100:.2f}%\n"
+                f"High(50): {float(high.max()):.6f} Low(50): {float(low.min()):.6f}\n"
+                f"Volume(50): {float(volume.sum()):.2f}\n"
+                f"RSI: {float(rsi) if rsi is not None else 'N/A'}\n"
+                f"MACD_hist: {float(macd_hist) if macd_hist is not None else 'N/A'}\n"
+                f"BB_width: {float(bb_width) if bb_width is not None else 'N/A'}\n"
+                f"EMA_short: {float(ema_short) if ema_short is not None else 'N/A'} "
+                f"EMA_long: {float(ema_long) if ema_long is not None else 'N/A'}\n"
+            )
+
+            response = self.ollama.generate(prompt, temperature=0.2, max_tokens=120)
+            if not response:
+                return None
+            response = response.strip()
+
+            action = "hold"
+            confidence = 0.0
+            reason = "AI chart signal"
+
+            if response.startswith("{"):
+                data = json.loads(response)
+                action = str(data.get("action", "hold")).lower()
+                confidence = float(data.get("confidence", 0.0))
+                reason = data.get("reason", reason)
+            else:
+                upper = response.upper()
+                if "BUY" in upper:
+                    action = "buy"
+                elif "SELL" in upper:
+                    action = "sell"
+                confidence = 0.6
+                reason = response[:200]
+
+            if action not in {"buy", "sell", "hold"}:
+                return None
+            if confidence < self.signal_generation_min_confidence:
+                return None
+
+            entry = {
+                "timestamp": datetime.now().isoformat(),
+                "symbol": symbol,
+                "action": action,
+                "confidence": confidence,
+                "reason": reason
+            }
+            self._log_ai_signal(entry)
+            entry["weight"] = self.signal_generation_weight
+            return entry
+        except Exception as e:
+            logger.error(f"Error generating AI chart signal: {e}")
+            return None
+
+    def _log_ai_signal(self, entry: Dict[str, Any]):
+        """Log AI chart signals to file"""
+        try:
+            os.makedirs("logs", exist_ok=True)
+            log_path = os.path.join("logs", "ai_signal.log")
+            with open(log_path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(entry) + "\n")
+        except Exception as exc:
+            logger.warning(f"Failed to log AI signal: {exc}")
     
     def _initialize_pattern_templates(self) -> Dict:
         """Initialize market pattern templates"""
