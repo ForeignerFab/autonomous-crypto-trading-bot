@@ -66,6 +66,7 @@ class DiscordNotifier:
         # Report generator
         self.report_generator = ReportGenerator(config)
         self.pending_suggestions: Dict[str, Dict[str, Any]] = {}
+        self.app_version = os.getenv("APP_VERSION") or os.getenv("GIT_COMMIT") or "dev"
         
         # Setup bot events and commands
         self._setup_bot_events()
@@ -257,6 +258,14 @@ class DiscordNotifier:
             except Exception as e:
                 logger.error(f"Error in report command: {e}")
                 await ctx.send("❌ Error generating report")
+
+        @self.bot.command(name='version')
+        async def version_command(ctx):
+            """Show bot version"""
+            try:
+                await ctx.send(f"🤖 Bot version: `{self.app_version}`")
+            except Exception as e:
+                logger.error(f"Error in version command: {e}")
 
         @self.bot.command(name='pause')
         @commands.has_permissions(administrator=True)
