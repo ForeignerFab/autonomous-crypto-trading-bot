@@ -143,7 +143,7 @@ ai_assistant:
   ollama_url: ""          # Ollama API URL (default: http://localhost:11434)
                           # For cloud: use external Ollama service URL
                           # Example: https://your-ollama-instance.com
-  ollama_model: "llama3.1:8b"  # Model to use
+  ollama_model: "phi3:mini"  # Model to use
   
   # Learning parameters
   lookback_period: 30     # Days of data for learning
