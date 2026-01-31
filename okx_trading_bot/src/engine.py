@@ -489,6 +489,11 @@ class TradingEngine:
             # Check if we already have a position in this symbol
             if signal.symbol in self.positions:
                 return False
+
+            # Spot-only rule: do not open short positions without holdings
+            if signal.action == 'sell' and signal.symbol not in self.positions:
+                logger.info(f"Skipping short signal in spot mode: {signal.symbol}")
+                return False
             
             # Check daily loss limit
             if self.daily_pnl <= -self.config['risk_management']['max_daily_loss']:

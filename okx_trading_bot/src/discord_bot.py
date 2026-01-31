@@ -282,6 +282,30 @@ class DiscordNotifier:
             except Exception as e:
                 logger.error(f"Error in version command: {e}")
 
+        @self.bot.command(name='commands')
+        async def commands_command(ctx):
+            """List available bot commands"""
+            try:
+                embed = discord.Embed(
+                    title="🤖 Available Commands",
+                    color=discord.Color.blurple(),
+                    timestamp=datetime.now()
+                )
+                embed.add_field(
+                    name="General",
+                    value="`!status` `!balance` `!positions` `!report` `!version` `!commands`",
+                    inline=False
+                )
+                embed.add_field(
+                    name="Admin",
+                    value="`!pause` `!resume` `!stop` `!optimize` `!suggestions` `!approve <id>` "
+                          "`!reject <id>` `!configsuggest`",
+                    inline=False
+                )
+                await ctx.send(embed=embed)
+            except Exception as e:
+                logger.error(f"Error in commands command: {e}")
+
         @self.bot.command(name='pause')
         @commands.has_permissions(administrator=True)
         async def pause_command(ctx):
