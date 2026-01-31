@@ -6,12 +6,12 @@
 trading:
   # Capital and risk settings
   initial_capital: 500.0  # Starting capital in GBP
-  risk_per_trade: 0.02    # 2% risk per trade
-  max_risk_amount: 10.0   # Maximum £10 per trade
+  risk_per_trade: 0.015   # 1.5% risk per trade (5m tuning)
+  max_risk_amount: 7.5    # Maximum £7.50 per trade
   
   # Trading pairs and selection
   base_currency: "USDT"
-  max_active_pairs: 5     # Maximum number of pairs to trade simultaneously
+  max_active_pairs: 3     # Maximum number of pairs to trade simultaneously
   pair_selection_interval: 3600  # Seconds between pair selection updates
   
   # Technical analysis parameters
@@ -62,7 +62,7 @@ trading:
 
   # Strategy settings
   strategy:
-    timeframe: "1m"       # Primary timeframe
+    timeframe: "5m"       # Primary timeframe
     signal_confirmation: true  # Require multiple indicator confirmation
     min_profit_target: 0.005   # 0.5% minimum profit target
     stop_loss_multiplier: 2.0  # Stop loss as multiple of ATR
@@ -94,16 +94,16 @@ discord:
 
 # Risk Management
 risk_management:
-  max_daily_loss: 50.0    # Maximum daily loss in GBP
-  max_drawdown: 100.0     # Maximum total drawdown in GBP
+  max_daily_loss: 25.0    # Maximum daily loss in GBP (5m tuning)
+  max_drawdown: 60.0      # Maximum total drawdown in GBP
   position_sizing_method: "fixed_risk"  # fixed_risk, kelly, optimal_f
   
   # Portfolio limits
-  max_positions: 10       # Maximum open positions
+  max_positions: 5        # Maximum open positions
   correlation_limit: 0.7  # Maximum correlation between positions
   
   # Emergency stops
-  emergency_stop_loss: 0.15  # 15% emergency stop
+  emergency_stop_loss: 0.12  # 12% emergency stop
   circuit_breaker: true   # Enable circuit breaker
 
 # Logging and Monitoring
@@ -141,7 +141,7 @@ ai_assistant:
   ollama_url: ""          # Ollama API URL (default: http://localhost:11434)
                           # For cloud: use external Ollama service URL
                           # Example: https://your-ollama-instance.com
-  ollama_model: "llama3.2:7b"  # Model to use (llama3.2:7b, deepseek-coder, etc.)
+  ollama_model: "llama3.1:8b"  # Model to use
   
   # Learning parameters
   lookback_period: 30     # Days of data for learning
@@ -150,8 +150,8 @@ ai_assistant:
 # Pattern Research Configuration
 research:
   enabled: true
-  top_pairs: 30
-  timeframes: ["1m", "5m", "15m"]
+  top_pairs: 20
+  timeframes: ["5m"]
   days: 90
   interval_hours: 48
   max_requests_per_run: 2000

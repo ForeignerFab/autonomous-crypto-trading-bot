@@ -251,8 +251,9 @@ class TradingEngine:
                     volume_avg = df['volume'].mean()
                     momentum = (df['close'].iloc[-1] / df['close'].iloc[-20] - 1) * 100
                     
-                    # Score the pair
-                    score = (volatility * 0.4) + (np.log(volume_avg) * 0.3) + (abs(momentum) * 0.3)
+                    # Score the pair (avoid log(0))
+                    safe_volume = max(volume_avg, 1e-9)
+                    score = (volatility * 0.4) + (np.log(safe_volume) * 0.3) + (abs(momentum) * 0.3)
                     
                     scored_pairs.append({
                         'symbol': symbol,

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from loguru import logger
 import json
+import os
 import pickle
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import StandardScaler
@@ -76,7 +77,7 @@ class AIAssistant:
         if self.use_ollama:
             try:
                 ollama_url = self.ai_config.get('ollama_url', None)
-                ollama_model = self.ai_config.get('ollama_model', 'llama3.2:7b')
+                ollama_model = os.getenv("OLLAMA_MODEL") or self.ai_config.get('ollama_model', 'llama3.2:7b')
                 self.ollama = OllamaService(base_url=ollama_url, model=ollama_model)
                 if self.ollama.is_available():
                     logger.info(f"Ollama AI enabled with model: {ollama_model}")
