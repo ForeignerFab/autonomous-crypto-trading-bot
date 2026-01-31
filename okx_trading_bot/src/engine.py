@@ -544,7 +544,17 @@ class TradingEngine:
                 order_type='market'
             )
             
-            if order and order.get('status') == 'filled':
+            if order and order.get('id') and order.get('status') not in ('filled', 'closed'):
+                order = await self.okx_client.wait_for_order_fill(signal.symbol, order['id'])
+
+            is_filled = False
+            if order:
+                status = str(order.get('status', '')).lower()
+                filled = float(order.get('filled') or 0)
+                amount = float(order.get('amount') or 0)
+                is_filled = status in {'filled', 'closed'} or (amount and filled >= amount)
+
+            if order and is_filled:
                 # Create position record
                 position = Position(
                     symbol=signal.symbol,

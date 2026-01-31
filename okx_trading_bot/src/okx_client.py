@@ -204,6 +204,43 @@ class OKXClient:
         except Exception as e:
             logger.error(f"Error placing order: {e}")
             return None
+
+    async def get_order(self, symbol: str, order_id: str) -> Optional[Dict]:
+        """Fetch order status"""
+        try:
+            await self._rate_limit_check()
+            return await self.exchange.fetch_order(order_id, symbol)
+        except Exception as e:
+            logger.error(f"Error fetching order {order_id} for {symbol}: {e}")
+            return None
+
+    async def wait_for_order_fill(
+        self,
+        symbol: str,
+        order_id: str,
+        timeout: int = 10,
+        poll_interval: float = 1.0
+    ) -> Optional[Dict]:
+        """Poll order status until filled or timeout"""
+        try:
+            start = time.time()
+            while time.time() - start < timeout:
+                order = await self.get_order(symbol, order_id)
+                if not order:
+                    await asyncio.sleep(poll_interval)
+                    continue
+
+                status = str(order.get("status", "")).lower()
+                filled = float(order.get("filled") or 0)
+                amount = float(order.get("amount") or 0)
+                if status in {"closed", "filled"} or (amount and filled >= amount):
+                    return order
+
+                await asyncio.sleep(poll_interval)
+            return await self.get_order(symbol, order_id)
+        except Exception as e:
+            logger.error(f"Error waiting for order fill {order_id}: {e}")
+            return None
     
     async def cancel_order(self, order_id: str, symbol: str) -> bool:
         """Cancel an order"""
