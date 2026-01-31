@@ -4,6 +4,8 @@ Builds statistical evidence for trading patterns across markets.
 """
 
 import time
+import os
+import json
 from typing import Dict, List, Tuple
 from datetime import datetime
 import pandas as pd
@@ -21,6 +23,9 @@ class PatternResearcher:
         self.ai_assistant = ai_assistant
         self.db = db
         self.discord = discord
+        self._skip_symbols_path = os.path.join("data", "research_skip_symbols.json")
+        self._skip_symbols = set()
+        self._load_skip_symbols()
 
     async def run(self):
         settings = self.config.get('research', {})
@@ -45,6 +50,8 @@ class PatternResearcher:
             return
 
         for symbol in symbols:
+            if symbol in self._skip_symbols:
+                continue
             for timeframe in timeframes:
                 remaining_requests = max_requests - request_count
                 if remaining_requests <= 0:
@@ -97,6 +104,12 @@ class PatternResearcher:
             batch = await self.okx_client.get_klines_since(symbol, timeframe, since_ms, limit)
             used_requests += 1
             if not batch:
+                if used_requests == 1:
+                    self._skip_symbols.add(symbol)
+                    self._save_skip_symbols()
+                    logger.warning(
+                        f"Skipping research for {symbol}; history-candles unavailable."
+                    )
                 break
             all_candles.extend(batch)
             since_ms = batch[-1][0] + 1
@@ -114,6 +127,27 @@ class PatternResearcher:
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
 
         return df, used_requests
+
+    def _load_skip_symbols(self):
+        try:
+            if not os.path.exists(self._skip_symbols_path):
+                return
+            with open(self._skip_symbols_path, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            if isinstance(data, list):
+                self._skip_symbols = set(str(item) for item in data)
+                if self._skip_symbols:
+                    logger.info(f"Loaded research skip list: {sorted(self._skip_symbols)}")
+        except Exception as e:
+            logger.warning(f"Failed to load research skip list: {e}")
+
+    def _save_skip_symbols(self):
+        try:
+            os.makedirs(os.path.dirname(self._skip_symbols_path), exist_ok=True)
+            with open(self._skip_symbols_path, "w", encoding="utf-8") as handle:
+                json.dump(sorted(self._skip_symbols), handle, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to save research skip list: {e}")
 
     def _extract_patterns(self, indicators: Dict) -> Dict[str, pd.Series]:
         """Extract known pattern series from indicators"""
