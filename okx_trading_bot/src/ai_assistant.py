@@ -7,6 +7,7 @@ Enhanced with Ollama AI integration for free, powerful AI capabilities
 
 import numpy as np
 import pandas as pd
+import asyncio
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
@@ -98,6 +99,7 @@ class AIAssistant:
         self.market_patterns = {}
         self.parameter_performance = {}
         self.research_stats = {}
+        self._gate_lock = asyncio.Lock()
         
         # Pattern templates
         self.pattern_templates = self._initialize_pattern_templates()
@@ -366,39 +368,40 @@ class AIAssistant:
         # Use Ollama when available
         if self.use_ollama and self.ollama and self.ollama.is_available():
             try:
-                prompt = (
-                    "Evaluate this trade signal and respond in JSON with keys "
-                    "`approve` (true/false), `confidence` (0-1), and `reason`.\n\n"
-                    f"Signal: action={signal.action}, confidence={signal.confidence:.2f}, "
-                    f"entry={signal.entry_price:.6f}, stop={signal.stop_loss:.6f}, "
-                    f"take_profit={signal.take_profit:.6f}\n"
-                    f"Indicators: rsi={indicators.get('rsi', pd.Series()).iloc[-1] if isinstance(indicators.get('rsi'), pd.Series) else indicators.get('rsi')}, "
-                    f"macd_hist={indicators.get('macd_histogram', pd.Series()).iloc[-1] if isinstance(indicators.get('macd_histogram'), pd.Series) else indicators.get('macd_histogram')}, "
-                    f"bb_width={indicators.get('bb_width', pd.Series()).iloc[-1] if isinstance(indicators.get('bb_width'), pd.Series) else indicators.get('bb_width')}, "
-                    f"ema_short={indicators.get('ema_short', pd.Series()).iloc[-1] if isinstance(indicators.get('ema_short'), pd.Series) else indicators.get('ema_short')}, "
-                    f"ema_long={indicators.get('ema_long', pd.Series()).iloc[-1] if isinstance(indicators.get('ema_long'), pd.Series) else indicators.get('ema_long')}"
-                )
-                response = self.ollama.generate(prompt, temperature=0.2, max_tokens=300)
-                if response:
-                    response = response.strip()
-                    if response.startswith("{"):
-                        data = json.loads(response)
-                        approve = bool(data.get("approve", False))
-                        confidence = float(data.get("confidence", 0))
-                        reason = data.get("reason", "AI evaluation")
+                async with self._gate_lock:
+                    prompt = (
+                        "Evaluate this trade signal and respond in JSON with keys "
+                        "`approve` (true/false), `confidence` (0-1), and `reason`.\n\n"
+                        f"Signal: action={signal.action}, confidence={signal.confidence:.2f}, "
+                        f"entry={signal.entry_price:.6f}, stop={signal.stop_loss:.6f}, "
+                        f"take_profit={signal.take_profit:.6f}\n"
+                        f"Indicators: rsi={indicators.get('rsi', pd.Series()).iloc[-1] if isinstance(indicators.get('rsi'), pd.Series) else indicators.get('rsi')}, "
+                        f"macd_hist={indicators.get('macd_histogram', pd.Series()).iloc[-1] if isinstance(indicators.get('macd_histogram'), pd.Series) else indicators.get('macd_histogram')}, "
+                        f"bb_width={indicators.get('bb_width', pd.Series()).iloc[-1] if isinstance(indicators.get('bb_width'), pd.Series) else indicators.get('bb_width')}, "
+                        f"ema_short={indicators.get('ema_short', pd.Series()).iloc[-1] if isinstance(indicators.get('ema_short'), pd.Series) else indicators.get('ema_short')}, "
+                        f"ema_long={indicators.get('ema_long', pd.Series()).iloc[-1] if isinstance(indicators.get('ema_long'), pd.Series) else indicators.get('ema_long')}"
+                    )
+                    response = self.ollama.generate(prompt, temperature=0.2, max_tokens=150)
+                    if response:
+                        response = response.strip()
+                        if response.startswith("{"):
+                            data = json.loads(response)
+                            approve = bool(data.get("approve", False))
+                            confidence = float(data.get("confidence", 0))
+                            reason = data.get("reason", "AI evaluation")
+                            return {
+                                "approve": approve and confidence >= min_confidence,
+                                "confidence": confidence,
+                                "reason": reason
+                            }
+                        # Fallback parsing if JSON is not returned
+                        upper = response.upper()
+                        approve = "APPROVE" in upper or "YES" in upper or "BUY" in upper
                         return {
-                            "approve": approve and confidence >= min_confidence,
-                            "confidence": confidence,
-                            "reason": reason
+                            "approve": approve and signal.confidence >= min_confidence,
+                            "confidence": signal.confidence,
+                            "reason": response[:200]
                         }
-                    # Fallback parsing if JSON is not returned
-                    upper = response.upper()
-                    approve = "APPROVE" in upper or "YES" in upper or "BUY" in upper
-                    return {
-                        "approve": approve and signal.confidence >= min_confidence,
-                        "confidence": signal.confidence,
-                        "reason": response[:200]
-                    }
             except Exception as e:
                 logger.warning(f"AI gating failed: {e}")
 
