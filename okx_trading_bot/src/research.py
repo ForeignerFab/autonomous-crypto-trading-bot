@@ -44,7 +44,19 @@ class PatternResearcher:
         request_count = 0
         results = []
 
-        symbols = await self.okx_client.get_top_usdt_pairs(top_pairs)
+        allowlist = self.config.get('trading', {}).get('allowlist_pairs', [])
+        if allowlist:
+            tradeable = await self.okx_client.get_trading_pairs()
+            allowset = {str(symbol).strip() for symbol in allowlist}
+            symbols = [symbol for symbol in tradeable if symbol in allowset]
+            if not symbols:
+                await self.discord.send_notification(
+                    "📚 Research Skipped",
+                    "Allowlist filtered out all symbols for research."
+                )
+                return
+        else:
+            symbols = await self.okx_client.get_top_usdt_pairs(top_pairs)
         if not symbols:
             await self.discord.send_notification("📚 Research Skipped", "No symbols available for research.")
             return
