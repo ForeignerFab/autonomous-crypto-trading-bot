@@ -228,6 +228,15 @@ class RiskManager:
         
         except Exception as e:
             logger.error(f"Error updating daily P&L: {e}")
+
+    def update_initial_capital(self, capital: float):
+        """Update peak equity based on live balance"""
+        try:
+            if capital and capital > 0:
+                self.peak_equity = float(capital)
+                logger.info(f"Updated peak equity from live balance: {self.peak_equity:.2f}")
+        except Exception as e:
+            logger.error(f"Error updating initial capital: {e}")
     
     def _check_risk_limits(self):
         """Check if risk limits have been breached"""

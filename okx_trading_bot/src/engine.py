@@ -69,6 +69,7 @@ class TradingEngine:
         self.positions = {}
         self.daily_pnl = 0.0
         self.total_trades = 0
+        self.current_balance = None
         self.last_research_time = 0
         self.research_running = False
         
@@ -158,15 +159,17 @@ class TradingEngine:
         
         # Initialize components
         await self.okx_client.initialize()
+        await self._sync_live_balance("startup")
         await self.discord.initialize()
         await self.db.initialize()
         
         # Send startup notification
+        base_currency = self.config.get('trading', {}).get('base_currency', 'USDT')
         await self.discord.send_notification(
             "🚀 Trading Bot Started",
-            f"Bot initialized with £{self.config['trading']['initial_capital']} capital\n"
+            f"Bot initialized with {self.config['trading']['initial_capital']} {base_currency} capital\n"
             f"Risk per trade: {self.config['trading']['risk_per_trade']*100}%\n"
-            f"Max risk: £{self.config['trading']['max_risk_amount']}"
+            f"Max risk: {self.config['trading']['max_risk_amount']} {base_currency}"
         )
         
         # Start main trading loop
@@ -566,8 +569,17 @@ class TradingEngine:
                 
                 # Send notification
                 await self.discord.send_trade_notification(signal, order)
+
+                # Update balance after trade execution
+                await self._sync_live_balance("trade_open")
                 
                 logger.info(f"Executed {signal.action} order for {signal.symbol}: {signal.position_size} @ {signal.entry_price}")
+            else:
+                logger.warning(f"Order not filled for {signal.symbol}: {order}")
+                await self.discord.send_notification(
+                    "⚠️ Order Not Filled",
+                    f"Symbol: {signal.symbol}\nAction: {signal.action}\nStatus: {order.get('status') if order else 'unknown'}"
+                )
         
         except Exception as e:
             logger.error(f"Error executing trade: {e}")
@@ -662,6 +674,9 @@ class TradingEngine:
                 # Send notification
                 await self.discord.send_position_close_notification(position, reason)
 
+                # Update balance after trade close
+                await self._sync_live_balance("trade_close")
+
                 if self.ai_assistant:
                     self.ai_assistant.learn_from_trade({
                         "symbol": position.symbol,
@@ -710,6 +725,18 @@ class TradingEngine:
         
         except Exception as e:
             logger.error(f"Error in risk checks: {e}")
+
+    async def _sync_live_balance(self, reason: str):
+        """Sync live account balance into capital tracking"""
+        try:
+            balance = await self.okx_client.get_balance()
+            if balance and balance > 0:
+                self.current_balance = float(balance)
+                self.config['trading']['initial_capital'] = float(balance)
+                self.risk_manager.update_initial_capital(balance)
+                logger.info(f"Synced live balance ({reason}): {balance:.4f}")
+        except Exception as e:
+            logger.warning(f"Failed to sync live balance ({reason}): {e}")
     
     async def _ai_optimization(self):
         """AI-driven parameter optimization"""

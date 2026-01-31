@@ -172,6 +172,7 @@ class OKXClient:
         """Place a trading order"""
         try:
             await self._rate_limit_check()
+            params = params or {}
             
             # Validate parameters
             if amount <= 0:
@@ -190,10 +191,9 @@ class OKXClient:
                 if price is None:
                     logger.error("Stop price required for stop market order")
                     return None
-                order = await self.exchange.create_order(symbol, 'market', side, amount, None, {
-                    'stopPrice': price,
-                    'type': 'stop_market'
-                })
+                stop_params = dict(params)
+                stop_params.update({'stopPrice': price, 'type': 'stop_market'})
+                order = await self.exchange.create_order(symbol, 'market', side, amount, None, stop_params)
             else:
                 logger.error(f"Unsupported order type: {order_type}")
                 return None
