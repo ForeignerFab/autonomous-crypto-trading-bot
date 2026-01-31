@@ -11,7 +11,7 @@ trading:
   
   # Trading pairs and selection
   base_currency: "USDT"
-  max_active_pairs: 3     # Maximum number of pairs to trade simultaneously
+  max_active_pairs: 8     # Maximum number of pairs to trade simultaneously
   pair_selection_interval: 3600  # Seconds between pair selection updates
   
   # Technical analysis parameters
@@ -62,7 +62,7 @@ trading:
 
   # Strategy settings
   strategy:
-    timeframe: "5m"       # Primary timeframe
+    timeframe: "15m"       # Primary timeframe
     signal_confirmation: false  # Allow single-indicator signals (demo)
     min_profit_target: 0.005   # 0.5% minimum profit target
     stop_loss_multiplier: 3.0  # Wider stop loss for demo fills
