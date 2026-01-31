@@ -27,6 +27,7 @@ class DiscordNotifier:
         config_path: Optional[str] = None,
         config_update_callback: Optional[Any] = None,
         ai_optimization_callback: Optional[Any] = None,
+        config_suggest_callback: Optional[Any] = None,
         status_callback: Optional[Any] = None,
         pause_callback: Optional[Any] = None,
         resume_callback: Optional[Any] = None,
@@ -40,6 +41,7 @@ class DiscordNotifier:
         self.config_path = config_path
         self.config_update_callback = config_update_callback
         self.ai_optimization_callback = ai_optimization_callback
+        self.config_suggest_callback = config_suggest_callback
         self.status_callback = status_callback
         self.pause_callback = pause_callback
         self.resume_callback = resume_callback
@@ -127,6 +129,21 @@ class DiscordNotifier:
             
             # Process commands
             await self.bot.process_commands(message)
+
+        @self.bot.event
+        async def on_command_error(ctx, error):
+            """Handle command errors with user feedback"""
+            if isinstance(error, commands.MissingPermissions):
+                await ctx.send("❌ You need Administrator permission to use this command.")
+                return
+            if isinstance(error, commands.CommandNotFound):
+                return
+            if isinstance(error, commands.CheckFailure):
+                await ctx.send("❌ You don't have permission to run this command.")
+                return
+
+            logger.error(f"Command error: {error}")
+            await ctx.send("❌ Command failed. Check logs for details.")
     
     def _setup_commands(self):
         """Setup Discord bot commands"""
@@ -344,6 +361,32 @@ class DiscordNotifier:
                 await self.send_ai_suggestions(suggestions)
             else:
                 await ctx.send("No AI suggestions available yet.")
+
+        @self.bot.command(name='configsuggest')
+        @commands.has_permissions(administrator=True)
+        async def configsuggest_command(ctx):
+            """Suggest config updates based on research"""
+            if not self.config_suggest_callback:
+                await ctx.send("Config suggest callback is not configured.")
+                return
+
+            await ctx.send("Generating research-based config suggestions...")
+            result = await self.config_suggest_callback()
+            suggestions = result.get("suggestions")
+            chart_path = result.get("chart_path")
+            message = result.get("message")
+
+            if suggestions:
+                await self.send_ai_suggestions(
+                    suggestions,
+                    chart_path=chart_path,
+                    title="📌 Research-Based Config Suggestions",
+                    note=message
+                )
+            else:
+                await ctx.send(message or "No research-based suggestions available.")
+                if chart_path:
+                    await self.send_research_chart(chart_path, "Latest research snapshot")
     
     async def close(self):
         """Close Discord bot"""
@@ -458,7 +501,13 @@ class DiscordNotifier:
         except Exception as e:
             logger.error(f"Error sending error notification: {e}")
     
-    async def send_ai_suggestions(self, suggestions: Dict):
+    async def send_ai_suggestions(
+        self,
+        suggestions: Dict,
+        chart_path: Optional[str] = None,
+        title: str = "🧠 AI Parameter Suggestions",
+        note: Optional[str] = None
+    ):
         """Send AI parameter optimization suggestions"""
         try:
             if not self.channel:
@@ -474,12 +523,16 @@ class DiscordNotifier:
                 "created_at": datetime.now()
             }
 
+            description = (
+                "The AI assistant suggests the following config updates.\n"
+                f"Approve with `!approve {suggestion_id}` or reject with `!reject {suggestion_id}`."
+            )
+            if note:
+                description = f"{note}\n\n{description}"
+
             embed = discord.Embed(
-                title="🧠 AI Parameter Suggestions",
-                description=(
-                    "The AI assistant has analyzed recent performance and suggests the following optimizations.\n"
-                    f"Approve with `!approve {suggestion_id}` or reject with `!reject {suggestion_id}`."
-                ),
+                title=title,
+                description=description,
                 color=discord.Color.purple(),
                 timestamp=datetime.now()
             )
@@ -496,10 +549,33 @@ class DiscordNotifier:
                     inline=False
                 )
             
-            await self.channel.send(embed=embed)
+            if chart_path and os.path.exists(chart_path):
+                file = discord.File(chart_path, filename="research_summary.png")
+                embed.set_image(url="attachment://research_summary.png")
+                await self.channel.send(embed=embed, file=file)
+            else:
+                await self.channel.send(embed=embed)
             
         except Exception as e:
             logger.error(f"Error sending AI suggestions: {e}")
+
+    async def send_research_chart(self, chart_path: str, message: Optional[str] = None):
+        """Send a research chart image to Discord"""
+        try:
+            if not self.channel or not chart_path or not os.path.exists(chart_path):
+                return
+
+            embed = discord.Embed(
+                title="📊 Research Snapshot",
+                description=message or "",
+                color=discord.Color.teal(),
+                timestamp=datetime.now()
+            )
+            file = discord.File(chart_path, filename="research_summary.png")
+            embed.set_image(url="attachment://research_summary.png")
+            await self.channel.send(embed=embed, file=file)
+        except Exception as e:
+            logger.error(f"Error sending research chart: {e}")
 
     async def send_ai_gating_log(self, signal, evaluation: Dict):
         """Send AI gating decision to Discord"""

@@ -81,6 +81,7 @@ class TradingEngine:
             config_path=self.config_path,
             config_update_callback=self._apply_config_updates,
             ai_optimization_callback=self._run_ai_optimization,
+            config_suggest_callback=self._run_research_config_suggest,
             status_callback=self._get_status,
             pause_callback=self._pause_trading,
             resume_callback=self._resume_trading,
@@ -728,6 +729,89 @@ class TradingEngine:
             return await self.ai_assistant.analyze_performance()
         except Exception as e:
             logger.error(f"Error running AI optimization: {e}")
+            return None
+
+    async def _run_research_config_suggest(self) -> Dict:
+        """Generate config suggestions from research and render a chart"""
+        try:
+            records = await self.db.get_recent_pattern_research(hours=168, limit=3000)
+            if not records:
+                return {"suggestions": None, "chart_path": None, "message": "No recent research data found."}
+
+            summary = self._aggregate_research_summary(records)
+            chart_path = self._render_research_chart(summary)
+
+            if not self.ai_assistant:
+                return {
+                    "suggestions": None,
+                    "chart_path": chart_path,
+                    "message": "AI assistant is not available."
+                }
+
+            suggestions = await self.ai_assistant.suggest_config_from_research(summary)
+            return {
+                "suggestions": suggestions,
+                "chart_path": chart_path,
+                "message": "Research-based config suggestions are ready."
+            }
+        except Exception as e:
+            logger.error(f"Error generating research config suggestions: {e}")
+            return {"suggestions": None, "chart_path": None, "message": f"Error: {e}"}
+
+    def _aggregate_research_summary(self, records: List[Dict]) -> List[Dict]:
+        """Aggregate research records by pattern and timeframe"""
+        summary = {}
+        for record in records:
+            key = (record.get("pattern_name"), record.get("timeframe"))
+            occurrences = int(record.get("occurrences", 0) or 0)
+            success = float(record.get("success_rate", 0) or 0) * occurrences
+            avg_ret = float(record.get("avg_return", 0) or 0) * occurrences
+            if key not in summary:
+                summary[key] = {"occurrences": 0, "success": 0.0, "avg_ret": 0.0}
+            summary[key]["occurrences"] += occurrences
+            summary[key]["success"] += success
+            summary[key]["avg_ret"] += avg_ret
+
+        results = []
+        for (pattern, timeframe), data in summary.items():
+            occ = data["occurrences"] or 1
+            results.append({
+                "pattern_name": pattern,
+                "timeframe": timeframe,
+                "occurrences": data["occurrences"],
+                "success_rate": data["success"] / occ,
+                "avg_return": data["avg_ret"] / occ
+            })
+
+        results.sort(key=lambda item: item.get("success_rate", 0), reverse=True)
+        return results
+
+    def _render_research_chart(self, summary: List[Dict]) -> Optional[str]:
+        """Render a bar chart of research success rates"""
+        if not summary:
+            return None
+        try:
+            import matplotlib.pyplot as plt
+
+            top = summary[:8]
+            labels = [f"{item['pattern_name']} ({item['timeframe']})" for item in top]
+            values = [item["success_rate"] * 100 for item in top]
+
+            os.makedirs("logs", exist_ok=True)
+            chart_path = os.path.join("logs", "research_summary.png")
+
+            plt.figure(figsize=(10, 4))
+            plt.bar(labels, values, color="#4C78A8")
+            plt.ylabel("Success Rate (%)")
+            plt.title("Top Pattern Success Rates (Recent Research)")
+            plt.xticks(rotation=30, ha="right")
+            plt.tight_layout()
+            plt.savefig(chart_path, dpi=150)
+            plt.close()
+
+            return chart_path
+        except Exception as e:
+            logger.error(f"Error rendering research chart: {e}")
             return None
 
     async def _maybe_run_research(self):

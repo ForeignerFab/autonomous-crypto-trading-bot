@@ -224,6 +224,137 @@ class AIAssistant:
             logger.error(f"Error in AI performance analysis: {e}")
             return None
 
+    async def suggest_config_from_research(self, research_summary: List[Dict]) -> Optional[Dict[str, ParameterSuggestion]]:
+        """Suggest config updates based on pattern research results"""
+        try:
+            if not self.enabled or not research_summary:
+                return None
+
+            current_params = {
+                'rsi_period': self.config['trading']['indicators']['rsi']['period'],
+                'macd_fast': self.config['trading']['indicators']['macd']['fast_period'],
+                'risk_per_trade': self.config['trading']['risk_per_trade'],
+                'bollinger_std': self.config['trading']['indicators']['bollinger_bands']['std_dev'],
+                'enable_rsi': self.config['trading']['indicators'].get('rsi', {}).get('enabled', True),
+                'enable_macd': self.config['trading']['indicators'].get('macd', {}).get('enabled', True),
+                'enable_bollinger_bands': self.config['trading']['indicators'].get('bollinger_bands', {}).get('enabled', True),
+                'enable_ema': self.config['trading']['indicators'].get('ema', {}).get('enabled', True),
+                'enable_vwap': self.config['trading']['indicators'].get('vwap', {}).get('enabled', True),
+                'enable_stochastic': self.config['trading']['indicators'].get('stochastic', {}).get('enabled', False),
+                'enable_williams_r': self.config['trading']['indicators'].get('williams_r', {}).get('enabled', False),
+                'enable_cci': self.config['trading']['indicators'].get('cci', {}).get('enabled', False)
+            }
+
+            if self.use_ollama and self.ollama and self.ollama.is_available():
+                prompt = (
+                    "You are optimizing config parameters based on pattern research results.\n"
+                    "Only suggest values for these parameters: rsi_period, macd_fast_period, "
+                    "bollinger_std_dev, risk_per_trade, enable_rsi, enable_macd, "
+                    "enable_bollinger_bands, enable_ema, enable_vwap, enable_stochastic, "
+                    "enable_williams_r, enable_cci.\n"
+                    "Respond with a short plain-text list of suggestions using parameter names "
+                    "and numeric/true/false values (no JSON).\n\n"
+                    f"Current params: {current_params}\n"
+                    f"Research summary: {research_summary}\n"
+                )
+                response = self.ollama.generate(prompt, temperature=0.2, max_tokens=300)
+                if response:
+                    parsed = await self._parse_ollama_suggestions({"suggestions": response}, current_params)
+                    if parsed:
+                        return parsed
+
+            return self._heuristic_research_suggestions(research_summary, current_params)
+        except Exception as e:
+            logger.error(f"Error generating research-based suggestions: {e}")
+            return None
+
+    def _heuristic_research_suggestions(
+        self, research_summary: List[Dict], current_params: Dict
+    ) -> Dict[str, ParameterSuggestion]:
+        """Fallback suggestions based on simple research heuristics"""
+        suggestions: Dict[str, ParameterSuggestion] = {}
+
+        total_occ = sum(item.get("occurrences", 0) for item in research_summary) or 1
+        weighted_success = sum(
+            item.get("success_rate", 0) * item.get("occurrences", 0) for item in research_summary
+        )
+        avg_success = weighted_success / total_occ
+
+        current_risk = float(current_params.get("risk_per_trade", 0.02))
+        if avg_success < 0.45:
+            new_risk = max(0.005, round(current_risk - 0.005, 4))
+            if new_risk != current_risk:
+                suggestions["risk_per_trade"] = ParameterSuggestion(
+                    parameter="risk_per_trade",
+                    current_value=current_risk,
+                    suggested_value=new_risk,
+                    confidence=0.6,
+                    reason="Research success rate is low; reducing risk per trade",
+                    expected_improvement=0.02
+                )
+        elif avg_success > 0.6:
+            new_risk = min(0.03, round(current_risk + 0.005, 4))
+            if new_risk != current_risk:
+                suggestions["risk_per_trade"] = ParameterSuggestion(
+                    parameter="risk_per_trade",
+                    current_value=current_risk,
+                    suggested_value=new_risk,
+                    confidence=0.6,
+                    reason="Research success rate is strong; modestly increasing risk per trade",
+                    expected_improvement=0.02
+                )
+
+        ranked = sorted(
+            research_summary,
+            key=lambda item: item.get("success_rate", 0),
+            reverse=True
+        )
+        top_patterns = [item.get("pattern_name") for item in ranked[:3]]
+        reversal_patterns = {"double_bottom", "double_top", "hammer", "engulfing", "doji"}
+        trend_patterns = {"higher_highs", "lower_lows"}
+
+        if any(p in reversal_patterns for p in top_patterns):
+            if not current_params.get("enable_stochastic", False):
+                suggestions["enable_stochastic"] = ParameterSuggestion(
+                    parameter="enable_stochastic",
+                    current_value=False,
+                    suggested_value=True,
+                    confidence=0.55,
+                    reason="Reversal patterns perform well; enable stochastic confirmation",
+                    expected_improvement=0.01
+                )
+            elif not current_params.get("enable_williams_r", False):
+                suggestions["enable_williams_r"] = ParameterSuggestion(
+                    parameter="enable_williams_r",
+                    current_value=False,
+                    suggested_value=True,
+                    confidence=0.55,
+                    reason="Reversal patterns perform well; enable Williams %R confirmation",
+                    expected_improvement=0.01
+                )
+
+        if any(p in trend_patterns for p in top_patterns):
+            if not current_params.get("enable_ema", False):
+                suggestions["enable_ema"] = ParameterSuggestion(
+                    parameter="enable_ema",
+                    current_value=False,
+                    suggested_value=True,
+                    confidence=0.55,
+                    reason="Trend patterns perform well; enable EMA confirmation",
+                    expected_improvement=0.01
+                )
+            elif not current_params.get("enable_vwap", False):
+                suggestions["enable_vwap"] = ParameterSuggestion(
+                    parameter="enable_vwap",
+                    current_value=False,
+                    suggested_value=True,
+                    confidence=0.55,
+                    reason="Trend patterns perform well; enable VWAP confirmation",
+                    expected_improvement=0.01
+                )
+
+        return suggestions
+
     async def evaluate_trade_signal(self, signal, indicators: Dict) -> Dict[str, Any]:
         """Evaluate a trade signal for hard-gating approval"""
         min_confidence = self.trade_gating_config.get('min_confidence', 0.6)

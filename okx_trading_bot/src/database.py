@@ -202,6 +202,29 @@ class DatabaseManager:
     async def close(self):
         """Close database connections"""
         logger.info("Database connections closed")
+
+    async def get_recent_pattern_research(self, hours: int = 72, limit: int = 2000) -> List[Dict]:
+        """Fetch recent pattern research records"""
+        try:
+            cutoff = datetime.now() - timedelta(hours=hours)
+            cutoff_str = cutoff.strftime("%Y-%m-%d %H:%M:%S")
+            async with aiosqlite.connect(self.db_path) as db:
+                db.row_factory = aiosqlite.Row
+                cursor = await db.execute(
+                    '''
+                    SELECT pattern_name, timeframe, occurrences, success_rate, avg_return, sample_size, timestamp
+                    FROM pattern_research
+                    WHERE timestamp >= ?
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                    ''',
+                    (cutoff_str, limit)
+                )
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+        except Exception as e:
+            logger.error(f"Error fetching recent pattern research: {e}")
+            return []
     
     async def log_trade(self, signal, order: Dict):
         """Log a new trade"""

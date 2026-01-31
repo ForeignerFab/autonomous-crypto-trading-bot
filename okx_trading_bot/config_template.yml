@@ -5,9 +5,9 @@
 # Trading Configuration
 trading:
   # Capital and risk settings
-  initial_capital: 500.0  # Starting capital in GBP
-  risk_per_trade: 0.015   # 1.5% risk per trade (5m tuning)
-  max_risk_amount: 7.5    # Maximum £7.50 per trade
+  initial_capital: 5000.0  # Starting capital in USDT (demo)
+  risk_per_trade: 0.01     # 1% risk per trade (demo)
+  max_risk_amount: 50.0    # Maximum 50 USDT per trade
   
   # Trading pairs and selection
   base_currency: "USDT"
@@ -63,9 +63,9 @@ trading:
   # Strategy settings
   strategy:
     timeframe: "5m"       # Primary timeframe
-    signal_confirmation: true  # Require multiple indicator confirmation
+    signal_confirmation: false  # Allow single-indicator signals (demo)
     min_profit_target: 0.005   # 0.5% minimum profit target
-    stop_loss_multiplier: 2.0  # Stop loss as multiple of ATR
+    stop_loss_multiplier: 4.0  # Wider stop loss for demo fills
     take_profit_multiplier: 3.0 # Take profit as multiple of risk
 
 # OKX API Configuration (fill these in .env file)
@@ -94,8 +94,8 @@ discord:
 
 # Risk Management
 risk_management:
-  max_daily_loss: 25.0    # Maximum daily loss in GBP (5m tuning)
-  max_drawdown: 60.0      # Maximum total drawdown in GBP
+  max_daily_loss: 200.0    # Maximum daily loss in USDT (demo)
+  max_drawdown: 500.0      # Maximum total drawdown in USDT
   position_sizing_method: "fixed_risk"  # fixed_risk, kelly, optimal_f
   
   # Portfolio limits
