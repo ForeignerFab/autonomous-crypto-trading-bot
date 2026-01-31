@@ -542,17 +542,17 @@ class TradingEngine:
                 logger.warning(f"Skipping restricted pair: {signal.symbol}")
                 return
 
-            notional = signal.position_size * signal.entry_price
+            notional = float(signal.position_size) * float(signal.entry_price)
             order_params = {}
             if signal.action == 'buy':
-                order_params["cost"] = notional
+                order_params["cost"] = float(notional)
 
             # Place order
             order = await self.okx_client.place_order(
                 symbol=signal.symbol,
                 side=signal.action,
-                amount=signal.position_size,
-                price=signal.entry_price,
+                amount=float(signal.position_size),
+                price=float(signal.entry_price),
                 order_type='market',
                 params=order_params
             )
