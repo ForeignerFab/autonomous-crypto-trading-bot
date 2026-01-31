@@ -8,6 +8,7 @@ import asyncio
 import signal
 import sys
 import os
+import shutil
 from pathlib import Path
 from loguru import logger
 from datetime import datetime
@@ -209,13 +210,18 @@ class TradingBotManager:
 async def main():
     """Main entry point"""
     try:
-        # Check for config file
+        # Check for config file (fallback to template for cloud deploys)
         config_path = "config.yml"
         if not os.path.exists(config_path):
-            print("❌ Configuration file 'config.yml' not found!")
-            print("📋 Please copy 'config_template.yml' to 'config.yml' and configure your settings.")
-            print("🔑 Don't forget to set up your .env file with API keys!")
-            sys.exit(1)
+            template_path = "config_template.yml"
+            if os.path.exists(template_path):
+                shutil.copy(template_path, config_path)
+                print("ℹ️  config.yml not found. Copied from config_template.yml.")
+            else:
+                print("❌ Configuration file 'config.yml' not found!")
+                print("📋 Please copy 'config_template.yml' to 'config.yml' and configure your settings.")
+                print("🔑 Don't forget to set up your .env file with API keys!")
+                sys.exit(1)
         
         # Check for .env file (allow env vars in cloud deployments)
         if not os.path.exists('.env'):
