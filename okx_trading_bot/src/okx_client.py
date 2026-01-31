@@ -99,7 +99,10 @@ class OKXClient:
             # Filter for base currency pairs and active markets
             base_pairs = [
                 symbol for symbol, market in markets.items()
-                if market['quote'] == self.base_currency and market['active'] and market['spot']
+                if market['quote'] == self.base_currency
+                and market['active']
+                and market['spot']
+                and self._is_tradeable_market(market)
             ]
             
             logger.debug(f"Found {len(base_pairs)} {self.base_currency} trading pairs")
@@ -108,6 +111,16 @@ class OKXClient:
         except Exception as e:
             logger.error(f"Error getting trading pairs: {e}")
             return []
+
+    def _is_tradeable_market(self, market: Dict) -> bool:
+        """Check if market is live/tradeable based on exchange metadata"""
+        info = market.get('info', {}) if isinstance(market, dict) else {}
+        inst_state = info.get('state') or info.get('instState') or info.get('status')
+        if inst_state:
+            state = str(inst_state).lower()
+            if state not in {'live', 'trading', 'enabled'}:
+                return False
+        return True
     
     async def get_ticker(self, symbol: str) -> Dict:
         """Get ticker information for a symbol"""
@@ -203,6 +216,13 @@ class OKXClient:
         
         except Exception as e:
             logger.error(f"Error placing order: {e}")
+            message = str(e)
+            if "51155" in message:
+                return {
+                    "status": "rejected",
+                    "error_code": "51155",
+                    "reason": "compliance_restriction"
+                }
             return None
 
     async def get_order(self, symbol: str, order_id: str) -> Optional[Dict]:

@@ -471,6 +471,9 @@ class DiscordNotifier:
             embed.add_field(name="Risk Amount", value=f"£{signal.position_size * abs(signal.entry_price - signal.stop_loss):.2f}", inline=True)
             embed.add_field(name="Confidence", value=f"{signal.confidence*100:.1f}%", inline=True)
             embed.add_field(name="Order ID", value=order.get('id', 'N/A'), inline=True)
+            base_currency = self.config.get('trading', {}).get('base_currency', 'USDT')
+            notional = signal.position_size * signal.entry_price
+            embed.add_field(name="Notional", value=f"{notional:.4f} {base_currency}", inline=True)
             
             if signal.reasoning:
                 embed.add_field(name="Reasoning", value=signal.reasoning, inline=False)

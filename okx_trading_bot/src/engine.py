@@ -70,6 +70,7 @@ class TradingEngine:
         self.daily_pnl = 0.0
         self.total_trades = 0
         self.current_balance = None
+        self.restricted_pairs = set()
         self.last_research_time = 0
         self.research_running = False
         
@@ -236,6 +237,8 @@ class TradingEngine:
         try:
             # Get all available pairs
             all_pairs = await self.okx_client.get_trading_pairs()
+            if self.restricted_pairs:
+                all_pairs = [symbol for symbol in all_pairs if symbol not in self.restricted_pairs]
             
             # Filter pairs based on volume and volatility
             scored_pairs = []
@@ -535,15 +538,35 @@ class TradingEngine:
     async def _execute_trade(self, signal: TradingSignal):
         """Execute the trading signal"""
         try:
+            if signal.symbol in self.restricted_pairs:
+                logger.warning(f"Skipping restricted pair: {signal.symbol}")
+                return
+
+            notional = signal.position_size * signal.entry_price
+            order_params = {}
+            if signal.action == 'buy':
+                order_params["cost"] = notional
+
             # Place order
             order = await self.okx_client.place_order(
                 symbol=signal.symbol,
                 side=signal.action,
                 amount=signal.position_size,
                 price=signal.entry_price,
-                order_type='market'
+                order_type='market',
+                params=order_params
             )
             
+            if order and order.get('error_code') == '51155':
+                self.restricted_pairs.add(signal.symbol)
+                if signal.symbol in self.active_pairs:
+                    self.active_pairs = [sym for sym in self.active_pairs if sym != signal.symbol]
+                await self.discord.send_notification(
+                    "🚫 Restricted Pair",
+                    f"OKX rejected {signal.symbol} due to compliance restrictions. Removed from active pairs."
+                )
+                return
+
             if order and order.get('id') and order.get('status') not in ('filled', 'closed'):
                 order = await self.okx_client.wait_for_order_fill(signal.symbol, order['id'])
 
