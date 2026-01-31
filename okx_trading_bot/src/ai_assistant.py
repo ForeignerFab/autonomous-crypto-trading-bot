@@ -382,6 +382,14 @@ class AIAssistant:
                         f"ema_long={indicators.get('ema_long', pd.Series()).iloc[-1] if isinstance(indicators.get('ema_long'), pd.Series) else indicators.get('ema_long')}"
                     )
                     response = self.ollama.generate(prompt, temperature=0.2, max_tokens=150)
+                    if not response:
+                        short_prompt = (
+                            "Evaluate trade signal. Respond in JSON with keys approve, confidence, reason.\n"
+                            f"action={signal.action}, confidence={signal.confidence:.2f}, "
+                            f"entry={signal.entry_price:.6f}, stop={signal.stop_loss:.6f}, "
+                            f"take_profit={signal.take_profit:.6f}"
+                        )
+                        response = self.ollama.generate(short_prompt, temperature=0.2, max_tokens=64)
                     if response:
                         response = response.strip()
                         if response.startswith("{"):

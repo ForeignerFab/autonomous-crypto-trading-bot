@@ -25,12 +25,16 @@ class OllamaService:
         self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
         self.model = model or os.getenv("OLLAMA_MODEL", "llama3.2:7b")
         self.available = False
+        try:
+            self.timeout = float(os.getenv("OLLAMA_TIMEOUT", "90"))
+        except ValueError:
+            self.timeout = 90
         self._check_availability()
     
     def _check_availability(self) -> bool:
         """Check if Ollama is available"""
         try:
-            response = requests.get(f"{self.base_url}/api/tags", timeout=5)
+            response = requests.get(f"{self.base_url}/api/tags", timeout=10)
             if response.status_code == 200:
                 self.available = True
                 logger.info(f"Ollama service available at {self.base_url}")
@@ -79,7 +83,7 @@ class OllamaService:
                         "num_predict": max_tokens
                     }
                 },
-                timeout=30
+                timeout=self.timeout
             )
             
             if response.status_code == 200:
@@ -118,7 +122,7 @@ class OllamaService:
                         "temperature": temperature
                     }
                 },
-                timeout=30
+                timeout=self.timeout
             )
             
             if response.status_code == 200:
