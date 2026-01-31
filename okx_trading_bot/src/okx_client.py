@@ -24,6 +24,7 @@ class OKXClient:
         """Initialize OKX client"""
         self.config = config
         self.okx_config = config['okx']
+        self.base_currency = config.get('trading', {}).get('base_currency', 'USDT')
         
         # Rate limiting
         self.rate_limit_buffer = self.okx_config.get('rate_limit_buffer', 0.1)
@@ -55,7 +56,8 @@ class OKXClient:
             await self.exchange.load_markets()
             balance = await self.exchange.fetch_balance()
             
-            logger.info(f"OKX client connected successfully. Available balance: {balance.get('USDT', {}).get('free', 0)} USDT")
+            bal = balance.get(self.base_currency, {}).get('free', 0)
+            logger.info(f"OKX client connected successfully. Available balance: {bal} {self.base_currency}")
             
         except Exception as e:
             logger.error(f"Failed to initialize OKX client: {e}")
@@ -94,14 +96,14 @@ class OKXClient:
             
             markets = await self.exchange.load_markets()
             
-            # Filter for USDT pairs and active markets
-            usdt_pairs = [
+            # Filter for base currency pairs and active markets
+            base_pairs = [
                 symbol for symbol, market in markets.items()
-                if market['quote'] == 'USDT' and market['active'] and market['spot']
+                if market['quote'] == self.base_currency and market['active'] and market['spot']
             ]
             
-            logger.debug(f"Found {len(usdt_pairs)} USDT trading pairs")
-            return usdt_pairs
+            logger.debug(f"Found {len(base_pairs)} {self.base_currency} trading pairs")
+            return base_pairs
         
         except Exception as e:
             logger.error(f"Error getting trading pairs: {e}")
@@ -152,14 +154,13 @@ class OKXClient:
             return {}
     
     async def get_balance(self) -> float:
-        """Get account balance in USDT"""
+        """Get account balance in base currency"""
         try:
             await self._rate_limit_check()
             
             balance = await self.exchange.fetch_balance()
-            usdt_balance = balance.get('USDT', {}).get('free', 0)
-            
-            return float(usdt_balance)
+            base_balance = balance.get(self.base_currency, {}).get('free', 0)
+            return float(base_balance)
         
         except Exception as e:
             logger.error(f"Error getting balance: {e}")
@@ -230,7 +231,7 @@ class OKXClient:
             return []
 
     async def get_top_usdt_pairs(self, limit: int = 30) -> List[str]:
-        """Get top USDT pairs by 24h quote volume"""
+        """Get top base currency pairs by 24h quote volume"""
         try:
             await self._rate_limit_check()
             markets = await self.exchange.load_markets()
@@ -241,7 +242,7 @@ class OKXClient:
                 market = markets.get(symbol)
                 if not market or not market.get('spot'):
                     continue
-                if market.get('quote') != 'USDT':
+                if market.get('quote') != self.base_currency:
                     continue
 
                 quote_vol = ticker.get('quoteVolume') or 0

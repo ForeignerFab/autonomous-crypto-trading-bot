@@ -191,11 +191,14 @@ class RiskManager:
             # Check if stop loss is reasonable (not too tight or too wide)
             risk_percent = abs(signal.entry_price - signal.stop_loss) / signal.entry_price
             
-            if risk_percent < 0.005:  # Less than 0.5%
+            min_stop = float(self.risk_config.get('min_stop_loss_pct', 0.005))
+            max_stop = float(self.risk_config.get('max_stop_loss_pct', 0.1))
+
+            if risk_percent < min_stop:
                 logger.warning(f"Stop loss too tight: {risk_percent*100:.2f}%")
                 return False
             
-            if risk_percent > 0.1:  # More than 10%
+            if risk_percent > max_stop:
                 logger.warning(f"Stop loss too wide: {risk_percent*100:.2f}%")
                 return False
             
