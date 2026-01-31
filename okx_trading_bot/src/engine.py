@@ -71,6 +71,7 @@ class TradingEngine:
         self.total_trades = 0
         self.current_balance = None
         self.restricted_pairs = set()
+        self._restricted_pairs_path = os.path.join("data", "restricted_pairs.json")
         self.last_research_time = 0
         self.research_running = False
         
@@ -101,6 +102,8 @@ class TradingEngine:
             self.db,
             self.discord
         )
+
+        self._load_restricted_pairs()
         
         logger.info("Trading engine initialized")
     
@@ -593,8 +596,10 @@ class TradingEngine:
             
             if order and order.get('error_code') == '51155':
                 self.restricted_pairs.add(signal.symbol)
+                self._save_restricted_pairs()
                 if signal.symbol in self.active_pairs:
                     self.active_pairs = [sym for sym in self.active_pairs if sym != signal.symbol]
+                logger.warning(f"Added restricted pair: {signal.symbol}")
                 await self.discord.send_notification(
                     "🚫 Restricted Pair",
                     f"OKX rejected {signal.symbol} due to compliance restrictions. Removed from active pairs."
@@ -804,6 +809,29 @@ class TradingEngine:
                 logger.info(f"Synced live balance ({reason}): {balance:.4f}")
         except Exception as e:
             logger.warning(f"Failed to sync live balance ({reason}): {e}")
+
+    def _load_restricted_pairs(self):
+        """Load restricted pairs from disk to avoid repeated 51155s on restart"""
+        try:
+            if not os.path.exists(self._restricted_pairs_path):
+                return
+            with open(self._restricted_pairs_path, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            if isinstance(data, list):
+                self.restricted_pairs = set(str(item) for item in data)
+                if self.restricted_pairs:
+                    logger.info(f"Loaded restricted pairs: {sorted(self.restricted_pairs)}")
+        except Exception as e:
+            logger.warning(f"Failed to load restricted pairs: {e}")
+
+    def _save_restricted_pairs(self):
+        """Persist restricted pairs to disk"""
+        try:
+            os.makedirs(os.path.dirname(self._restricted_pairs_path), exist_ok=True)
+            with open(self._restricted_pairs_path, "w", encoding="utf-8") as handle:
+                json.dump(sorted(self.restricted_pairs), handle, indent=2)
+        except Exception as e:
+            logger.warning(f"Failed to save restricted pairs: {e}")
     
     async def _ai_optimization(self):
         """AI-driven parameter optimization"""

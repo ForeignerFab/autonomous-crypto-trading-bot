@@ -299,6 +299,10 @@ class OKXClient:
                 market = markets.get(symbol)
                 if not market or not market.get('spot'):
                     continue
+                if not market.get('active'):
+                    continue
+                if not self._is_tradeable_market(market):
+                    continue
                 if market.get('quote') != self.base_currency:
                     continue
 
