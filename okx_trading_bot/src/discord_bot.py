@@ -66,7 +66,7 @@ class DiscordNotifier:
         # Report generator
         self.report_generator = ReportGenerator(config)
         self.pending_suggestions: Dict[str, Dict[str, Any]] = {}
-        self.app_version = os.getenv("APP_VERSION") or os.getenv("GIT_COMMIT") or "dev"
+        self.app_version = self._resolve_app_version()
         
         # Setup bot events and commands
         self._setup_bot_events()
@@ -108,6 +108,21 @@ class DiscordNotifier:
         
         except Exception as e:
             logger.error(f"Failed to initialize Discord bot: {e}")
+
+    def _resolve_app_version(self) -> str:
+        """Resolve version from env or VERSION file"""
+        env_version = os.getenv("APP_VERSION") or os.getenv("GIT_COMMIT")
+        if env_version:
+            return env_version
+        try:
+            base_dir = os.path.dirname(os.path.dirname(__file__))
+            version_path = os.path.join(base_dir, "VERSION.txt")
+            if os.path.exists(version_path):
+                with open(version_path, "r", encoding="utf-8") as handle:
+                    return handle.read().strip() or "1.0"
+        except Exception as exc:
+            logger.warning(f"Failed to read VERSION.txt: {exc}")
+        return "1.0"
     
     async def _start_bot(self, token: str):
         """Start the Discord bot"""
