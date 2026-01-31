@@ -217,13 +217,16 @@ async def main():
             print("🔑 Don't forget to set up your .env file with API keys!")
             sys.exit(1)
         
-        # Check for .env file
+        # Check for .env file (allow env vars in cloud deployments)
         if not os.path.exists('.env'):
-            print("⚠️  Environment file '.env' not found!")
-            print("📋 Please copy '.env.example' to '.env' and add your API keys.")
-            print("🔑 Required: OKX_API_KEY, OKX_SECRET_KEY, OKX_PASSPHRASE")
-            print("🤖 Optional: DISCORD_BOT_TOKEN, DISCORD_CHANNEL_ID, DISCORD_WEBHOOK_URL")
-            sys.exit(1)
+            required_vars = ["OKX_API_KEY", "OKX_SECRET_KEY", "OKX_PASSPHRASE"]
+            missing = [var for var in required_vars if not os.getenv(var)]
+            if missing:
+                print("⚠️  Environment file '.env' not found and required variables are missing!")
+                print("📋 Please copy '.env.example' to '.env' and add your API keys, or set them in the environment.")
+                print(f"🔑 Missing: {', '.join(missing)}")
+                sys.exit(1)
+            print("ℹ️  .env file not found, using environment variables.")
         
         # Create and start bot manager
         bot_manager = TradingBotManager(config_path)
