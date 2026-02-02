@@ -178,12 +178,20 @@ class AIAssistant:
             confidence = 0.0
             reason = "AI chart signal"
 
-            if response.startswith("{"):
-                data = json.loads(response)
-                action = str(data.get("action", "hold")).lower()
-                confidence = float(data.get("confidence", 0.0))
-                reason = data.get("reason", reason)
-            else:
+            json_match = None
+            if "{" in response and "}" in response:
+                json_match = response[response.find("{"):response.rfind("}") + 1]
+
+            if json_match:
+                try:
+                    data = json.loads(json_match)
+                    action = str(data.get("action", "hold")).lower()
+                    confidence = float(data.get("confidence", 0.0))
+                    reason = data.get("reason", reason)
+                except json.JSONDecodeError:
+                    json_match = None
+
+            if not json_match:
                 upper = response.upper()
                 if "BUY" in upper:
                     action = "buy"

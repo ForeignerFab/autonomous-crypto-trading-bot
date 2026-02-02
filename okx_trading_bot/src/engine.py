@@ -531,8 +531,21 @@ class TradingEngine:
 
             # Spot-only rule: do not open short positions without holdings
             if signal.action == 'sell' and signal.symbol not in self.positions:
-                logger.info(f"Skipping short signal in spot mode: {signal.symbol}")
-                return False
+                base_asset = signal.symbol.split('/')[0] if '/' in signal.symbol else signal.symbol.split('-')[0]
+                free_asset = await self.okx_client.get_asset_balance(base_asset)
+                if free_asset < float(signal.position_size):
+                    logger.info(f"Skipping short signal in spot mode: {signal.symbol}")
+                    return False
+
+            # Ensure buy orders do not exceed available quote balance
+            if signal.action == 'buy':
+                notional = float(signal.position_size) * float(signal.entry_price)
+                free_quote = await self.okx_client.get_balance()
+                if free_quote and notional > free_quote:
+                    logger.warning(
+                        f"Skipping buy; notional {notional:.4f} > free {free_quote:.4f} {self.config['trading']['base_currency']}"
+                    )
+                    return False
             
             # Check daily loss limit
             if self.daily_pnl <= -self.config['risk_management']['max_daily_loss']:

@@ -178,6 +178,17 @@ class OKXClient:
         except Exception as e:
             logger.error(f"Error getting balance: {e}")
             return 0.0
+
+    async def get_asset_balance(self, asset: str) -> float:
+        """Get free balance for a specific asset"""
+        try:
+            await self._rate_limit_check()
+            balance = await self.exchange.fetch_balance()
+            asset_balance = balance.get(asset, {}).get('free', 0)
+            return float(asset_balance)
+        except Exception as e:
+            logger.error(f"Error getting {asset} balance: {e}")
+            return 0.0
     
     async def place_order(self, symbol: str, side: str, amount: float, 
                          price: Optional[float] = None, order_type: str = 'market',
