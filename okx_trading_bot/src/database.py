@@ -8,6 +8,7 @@ import sqlite3
 import aiosqlite
 import pandas as pd
 import json
+import numpy as np
 from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 from loguru import logger
@@ -230,6 +231,12 @@ class DatabaseManager:
         """Log a new trade"""
         try:
             async with aiosqlite.connect(self.db_path) as db:
+                indicators = None
+                if hasattr(signal, 'indicators'):
+                    indicators = self._json_safe(signal.indicators)
+                patterns = []
+                if hasattr(signal, 'patterns'):
+                    patterns = self._json_safe(signal.patterns)
                 await db.execute('''
                     INSERT INTO trades (
                         symbol, side, entry_price, quantity, stop_loss, take_profit,
@@ -243,8 +250,8 @@ class DatabaseManager:
                     signal.stop_loss,
                     signal.take_profit,
                     signal.reasoning,
-                    json.dumps(signal.indicators) if hasattr(signal, 'indicators') else None,
-                    json.dumps([]) if not hasattr(signal, 'patterns') else json.dumps(signal.patterns),
+                    json.dumps(indicators) if indicators is not None else None,
+                    json.dumps(patterns),
                     signal.confidence,
                     order.get('id')
                 ))
@@ -254,6 +261,20 @@ class DatabaseManager:
         
         except Exception as e:
             logger.error(f"Error logging trade: {e}")
+
+    def _json_safe(self, value: Any) -> Any:
+        """Convert objects to JSON-serializable structures"""
+        if isinstance(value, pd.Series):
+            return value.tolist()
+        if isinstance(value, pd.DataFrame):
+            return value.to_dict(orient='records')
+        if isinstance(value, np.generic):
+            return value.item()
+        if isinstance(value, dict):
+            return {key: self._json_safe(val) for key, val in value.items()}
+        if isinstance(value, list):
+            return [self._json_safe(item) for item in value]
+        return value
     
     async def log_trade_close(self, position, order: Dict, reason: str):
         """Log trade closure"""
