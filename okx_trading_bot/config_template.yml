@@ -13,7 +13,6 @@ trading:
   base_currency: "USDT"
   max_active_pairs: 8     # Maximum number of pairs to trade simultaneously
   pair_selection_interval: 3600  # Seconds between pair selection updates
-  allowlist_pairs: ["BTC/USDT", "ETH/USDT", "SOL/USDT", "ADA/USDT", "XRP/USDT", "DOGE/USDT", "SHIB/USDT", "LINK/USDT"]     # Optional: ["BTC/USDT", "ETH/USDT"] to restrict symbols
   
   # Technical analysis parameters
   indicators:

@@ -33,7 +33,8 @@ class DiscordNotifier:
         resume_callback: Optional[Any] = None,
         stop_callback: Optional[Any] = None,
         balance_callback: Optional[Any] = None,
-        positions_callback: Optional[Any] = None
+        positions_callback: Optional[Any] = None,
+        blocked_callback: Optional[Any] = None
     ):
         """Initialize Discord notifier"""
         self.config = config
@@ -48,6 +49,7 @@ class DiscordNotifier:
         self.stop_callback = stop_callback
         self.balance_callback = balance_callback
         self.positions_callback = positions_callback
+        self.blocked_callback = blocked_callback
         
         # Bot setup
         intents = discord.Intents.default()
@@ -233,6 +235,38 @@ class DiscordNotifier:
                 await ctx.send(embed=embed)
             except Exception as e:
                 logger.error(f"Error in positions command: {e}")
+
+        @self.bot.command(name='blocked')
+        async def blocked_command(ctx):
+            """List restricted pairs"""
+            try:
+                if not self.blocked_callback:
+                    await ctx.send("Blocked list not configured.")
+                    return
+
+                blocked = await self.blocked_callback()
+                if not blocked:
+                    await ctx.send("✅ No blocked pairs yet.")
+                    return
+
+                header = f"🚫 Blocked pairs ({len(blocked)}):\n"
+                chunks = []
+                current = header
+                for pair in blocked:
+                    line = f"{pair}\n"
+                    if len(current) + len(line) > 1900:
+                        chunks.append(current.rstrip())
+                        current = line
+                    else:
+                        current += line
+                if current.strip():
+                    chunks.append(current.rstrip())
+
+                for chunk in chunks:
+                    await ctx.send(chunk)
+            except Exception as e:
+                logger.error(f"Error in blocked command: {e}")
+                await ctx.send("❌ Error fetching blocked pairs.")
         
         @self.bot.command(name='stop')
         @commands.has_permissions(administrator=True)
@@ -293,7 +327,7 @@ class DiscordNotifier:
                 )
                 embed.add_field(
                     name="General",
-                    value="`!status` `!balance` `!positions` `!report` `!version` `!commands`",
+                    value="`!status` `!balance` `!positions` `!blocked` `!report` `!version` `!commands`",
                     inline=False
                 )
                 embed.add_field(

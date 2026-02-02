@@ -90,7 +90,8 @@ class TradingEngine:
             resume_callback=self._resume_trading,
             stop_callback=self._request_shutdown,
             balance_callback=self._get_balance,
-            positions_callback=self._get_positions
+            positions_callback=self._get_positions,
+            blocked_callback=self._get_blocked_pairs
         )
         self.ai_assistant = AIAssistant(self.config)
         self.db = DatabaseManager(self.config)
@@ -242,13 +243,6 @@ class TradingEngine:
             all_pairs = await self.okx_client.get_trading_pairs()
             if self.restricted_pairs:
                 all_pairs = [symbol for symbol in all_pairs if symbol not in self.restricted_pairs]
-            allowlist = self.config.get('trading', {}).get('allowlist_pairs', [])
-            if allowlist:
-                allowset = {str(symbol).strip() for symbol in allowlist}
-                all_pairs = [symbol for symbol in all_pairs if symbol in allowset]
-                if not all_pairs:
-                    logger.warning("Allowlist filtered out all trading pairs.")
-                    return
             
             # Filter pairs based on volume and volatility
             scored_pairs = []
@@ -992,6 +986,14 @@ class TradingEngine:
         except Exception as e:
             logger.error(f"Error fetching balance: {e}")
             return 0.0
+
+    async def _get_blocked_pairs(self) -> List[str]:
+        """Return restricted pairs for Discord command"""
+        try:
+            return sorted(self.restricted_pairs)
+        except Exception as e:
+            logger.error(f"Error fetching blocked pairs: {e}")
+            return []
 
     async def _get_positions(self) -> List[Dict]:
         """Return open positions"""
